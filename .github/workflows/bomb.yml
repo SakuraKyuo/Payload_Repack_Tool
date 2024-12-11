@@ -1,0 +1,58 @@
+name: ColorOS Stock Patch
+
+on:
+  workflow_dispatch:
+    inputs:
+     ROM_URL:
+        description: 'ColorOS ROM'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    # You might want to Checkout your repo first, but not mandatory
+    - name: Check Out
+      uses: actions/checkout@v3
+    - name: Cleanup
+      uses: rokibhasansagar/slimhub_actions@main
+
+    - name: Prepare the environment
+      run: |
+        sudo apt update
+        sudo apt -y upgrade
+        sudo apt -y install git zip unzip python3 python-is-python3 aria2 xxd openssl openjdk-17-jre-headless python3-protobuf -y
+
+    - name: Set Swap Space
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 12
+
+    - name: Patch
+      run: |
+        mkdir -p input output
+        echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
+        aria2c -d input -o update.zip -j 5 -x 16 "${{ github.event.inputs.ROM_URL }}"
+        unzip "input/update.zip" -d input/
+        bin/payload-dumper-go -o IMAGES input/payload.bin >>/dev/null
+        xxd -r bin/hex1 > IMAGES/my_company.img
+        xxd -r bin/hex2 > IMAGES/my_preload.img
+        ./repackPayload_withDpart.sh
+        mv input/META-INF output/
+        mv input/care_map.pb output/
+        rm -rf IMAGES input output/signed_metadata.bin output/unsigned-payload.bin output/signed_hash.bin
+        zip -r output.zip output/*
+        split -b 1900M --numeric-suffixes --suffix-length=2 output.zip rom.z
+      id: pwd
+
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: | 
+          rom.z*
+        name: ${{ github.run_id }}
+        tag_name: ${{ github.run_id }}
+        body: |
+          Link: ${{ github.event.inputs.ROM_URL }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
