@@ -49,6 +49,9 @@ jobs:
         rm -rf system
         xxd -r bin/hex1 > IMAGES/my_company.img
         xxd -r bin/hex2 > IMAGES/my_preload.img
+        ls IMAGES/*.img > META/ab_partitions.txt
+        sed -i 's/IMAGES\///g' META/ab_partitions.txt
+        sed -i 's/.img//g' META/ab_partitions.txt
         ./repackZip.sh
         split -b 1900M --numeric-suffixes --suffix-length=2 output/OTA.zip rom.z
         echo "cat $(ls rom.z* | tr '\n' ' ') > newrom.zip" > Merge.sh
