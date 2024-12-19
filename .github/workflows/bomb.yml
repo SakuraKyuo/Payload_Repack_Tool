@@ -36,17 +36,28 @@ jobs:
         unzip "input/update.zip" -d input/
         echo "开始解压payload"
         bin/payload-dumper-go -o IMAGES input/payload.bin >>/dev/null
-        info=$(bin/gettype -i IMAGES/system.img)
-        if [ "$info" == "ext" ]; then
+        infon=$(bin/gettype -i IMAGES/system.img)
+        if [ "$infon" == "ext" ]; then
             echo "尝试使用7z解压"
             7z x "IMAGES/system.img" -y -o"system/"
-        elif [ "$info" == "erofs" ]; then
+        elif [ "$infon" == "erofs" ]; then
             echo "尝试使用erofs解压"
             bin/fsck.erofs --extract="system" "IMAGES/system.img"
         fi
+        info=$(bin/gettype -i IMAGES/my_manifest.img)
+        if [ "$info" == "ext" ]; then
+            echo "尝试使用7z解压"
+            7z x "IMAGES/my_manifest.img" -y -o"my_manifest/"
+        elif [ "$info" == "erofs" ]; then
+            echo "尝试使用erofs解压"
+            bin/fsck.erofs --extract="my_manifest" "IMAGES/my_manifest.img"
+        fi
         rm -rf SYSTEM/*
         cp system/system/build.prop SYSTEM
-        rm -rf system
+        echo "$(cat my_manifest/build.prop | grep ro.product.vendor.device)" >> SYSTEM/build.prop
+        sed -i '/ro.product.system.device/d' SYSTEM/build.prop
+        sed -i 's/ro.product.vendor.device/ro.product.system.device/g' SYSTEM/build.prop
+        rm -rf my_manifest system
         xxd -r bin/hex1 > IMAGES/my_company.img
         xxd -r bin/hex2 > IMAGES/my_preload.img
         ls IMAGES/*.img > META/ab_partitions.txt
@@ -63,6 +74,7 @@ jobs:
         files: | 
           rom.z*
           Merge.sh
+          output/META-INF/com/android/metadata
         name: ${{ github.run_id }}
         tag_name: ${{ github.run_id }}
         body: |
