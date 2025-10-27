@@ -1,0 +1,74 @@
+name: ColorOS Image to Payload
+
+on:
+  workflow_dispatch:
+    inputs:
+     ROM_URL:
+        description: 'ColorOS ROM'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    # You might want to Checkout your repo first, but not mandatory
+    - name: Check Out
+      uses: actions/checkout@v3
+    - name: Cleanup
+      uses: rokibhasansagar/slimhub_actions@main
+
+    - name: Prepare the environment
+      run: |
+        sudo apt update
+        sudo apt -y upgrade
+        sudo apt -y install git zip unzip python3 python-is-python3 aria2 xxd openssl openjdk-17-jre-headless python3-protobuf p7zip-full -y
+
+    - name: Set Swap Space
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 12
+
+    - name: Patch
+      run: |
+        mkdir -p input output
+        echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
+        aria2c -d input -o update.zip -j 5 -x 16 "${{ github.event.inputs.ROM_URL }}"
+        unzip "input/update.zip" -d IMAGES/
+        info=$(bin/gettype -i IMAGES/system.img)
+        if [ "$info" == "ext" ]; then
+            echo "尝试使用7z解压"
+            7z x "IMAGES/system.img" -y -o"system/"
+            7z x "IMAGES/my_manifest.img" -y -o"my_manifest/"
+        elif [ "$info" == "erofs" ]; then
+            echo "尝试使用erofs解压"
+            bin/fsck.erofs --extract="system" "IMAGES/system.img"
+            bin/fsck.erofs --extract="my_manifest" "IMAGES/my_manifest.img"
+        fi
+        rm -rf SYSTEM/*
+        cp system/system/build.prop SYSTEM
+        echo "$(cat my_manifest/build.prop | grep ro.product.vendor.device)" >> SYSTEM/build.prop
+        sed -i -e '/ro.product.system.device/d' -e 's/ro.product.vendor.device/ro.product.system.device/g' SYSTEM/build.prop
+        rm -rf my_manifest system
+        xxd -r bin/hex1 > IMAGES/my_company.img
+        xxd -r bin/hex2 > IMAGES/my_preload.img
+        ls IMAGES/*.img > META/ab_partitions.txt
+        sed -i 's/IMAGES\///g' META/ab_partitions.txt
+        sed -i 's/.img//g' META/ab_partitions.txt
+        ./generatePartitions.sh
+        ./repackZip.sh
+        split -b 1900M --numeric-suffixes --suffix-length=2 output/OTA.zip rom.z
+        echo "cat $(ls rom.z* | tr '\n' ' ') > newrom.zip" > Merge.sh
+      id: pwd
+
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: | 
+          rom.z*
+          Merge.sh
+        name: ${{ github.run_id }}
+        tag_name: ${{ github.run_id }}
+        body: |
+          Link: ${{ github.event.inputs.ROM_URL }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
