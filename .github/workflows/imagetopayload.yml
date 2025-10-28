@@ -34,6 +34,7 @@ jobs:
         echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
         aria2c -d input -o update.zip -j 5 -x 16 "${{ github.event.inputs.ROM_URL }}"
         unzip "input/update.zip" -d IMAGES/
+        mv IMAGES/**/*.img IMAGES/
         info=$(bin/gettype -i IMAGES/system.img)
         if [ "$info" == "ext" ]; then
             echo "尝试使用7z解压"
