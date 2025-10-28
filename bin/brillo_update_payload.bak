@@ -431,6 +431,7 @@ extract_image_cros() {
   # Chrome OS now uses major_version 2 payloads for all boards.
   # See crbug.com/794404 for more information.
   FORCE_MAJOR_VERSION="2"
+  FORCE_MINOR_VERSION="8"
 
   eval ${partitions_array}[kernel]=\""${kernel}"\"
   eval ${partitions_array}[root]=\""${root}"\"
@@ -540,6 +541,7 @@ extract_image_brillo() {
 
   # All Brillo updaters support major version 2.
   FORCE_MAJOR_VERSION="2"
+  FORCE_MINOR_VERSION="8"
 
   if [[ "${partitions_array}" == "SRC_PARTITIONS" ]]; then
     # Source image
@@ -964,14 +966,6 @@ cmd_check() {
 # Check that the real generator exists:
 arch=$(uname -m)
 
-if [ "$arch" = "x86_64" ]; then
-  echo "Platform: x86_64"
-elif [ "$arch" = "aarch64" ]; then
-  echo "Platform: arm64"
-else
-  echo "Platform: $arch"
-  arch="x86-64"
-fi
 GENERATOR="./bin/delta_generator_$arch"
 [[ -x "${GENERATOR}" ]] || GENERATOR="$(which delta_generator || true)"
 [[ -x "${GENERATOR}" ]] || die "can't find delta_generator"
